@@ -193,6 +193,8 @@ pub struct Settings {
     pub controller: crate::gamepad::PadSettings,
     /// Horizon's native touch controls and layout presets.
     pub touch: crate::touch::Settings,
+    /// Optional Android keypad profile.
+    pub keypad: crate::keypad::Settings,
     /// Horizon's optional extras (`horizon-extras.txt`), all off by default.
     pub extras: crate::extras::Extras,
     /// The Horizon mods turned on (`horizon-mods.txt`), all off by default.
@@ -279,6 +281,7 @@ impl Default for Settings {
             horizon: Default::default(),
             controller: Default::default(),
             touch: Default::default(),
+            keypad: Default::default(),
             extras: Default::default(),
             mods: Default::default(),
             shader_packs: Vec::new(),
@@ -321,6 +324,7 @@ impl Settings {
             .map(crate::gamepad::PadSettings::load)
             .unwrap_or_default();
         let touch = crate::touch::Settings::load_from(&path.with_file_name("horizon-touch.json"));
+        let keypad = crate::keypad::Settings::load(&path.with_file_name("horizon-keypad.json"));
         let extras = path
             .parent()
             .map(crate::extras::Extras::load)
@@ -334,6 +338,7 @@ impl Settings {
                 horizon,
                 controller,
                 touch,
+                keypad,
                 extras,
                 mods,
                 ..Self::parse(&String::from_utf8_lossy(&bytes))
@@ -611,6 +616,7 @@ impl Settings {
             horizon: self.horizon.clone(),
             controller: self.controller.clone(),
             touch: self.touch.clone(),
+            keypad: self.keypad.clone(),
             extras: self.extras.clone(),
             mods: self.mods.clone(),
             ..Self::from_file(file)
@@ -628,6 +634,7 @@ impl Settings {
             self.controller.save(dir);
             #[cfg(target_os = "android")]
             let _ = self.touch.save_to(&dir.join("horizon-touch.json"));
+            let _ = self.keypad.save(&dir.join("horizon-keypad.json"));
             self.extras.save(dir);
             self.mods.save(dir);
         }
