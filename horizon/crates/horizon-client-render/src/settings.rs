@@ -191,6 +191,8 @@ pub struct Settings {
     pub horizon: crate::graphics::Graphics,
     /// Controller settings (`horizon-controller.txt`, Horizon's own).
     pub controller: crate::gamepad::PadSettings,
+    /// Horizon's native touch controls and layout presets.
+    pub touch: crate::touch::Settings,
     /// Horizon's optional extras (`horizon-extras.txt`), all off by default.
     pub extras: crate::extras::Extras,
     /// The Horizon mods turned on (`horizon-mods.txt`), all off by default.
@@ -276,6 +278,7 @@ impl Default for Settings {
             ctrl_click_emulates_right_click: false,
             horizon: Default::default(),
             controller: Default::default(),
+            touch: Default::default(),
             extras: Default::default(),
             mods: Default::default(),
             shader_packs: Vec::new(),
@@ -317,6 +320,7 @@ impl Settings {
             .parent()
             .map(crate::gamepad::PadSettings::load)
             .unwrap_or_default();
+        let touch = crate::touch::Settings::load_from(&path.with_file_name("horizon-touch.json"));
         let extras = path
             .parent()
             .map(crate::extras::Extras::load)
@@ -329,6 +333,7 @@ impl Settings {
             Ok(bytes) => Self {
                 horizon,
                 controller,
+                touch,
                 extras,
                 mods,
                 ..Self::parse(&String::from_utf8_lossy(&bytes))
@@ -603,6 +608,7 @@ impl Settings {
         Ok(Self {
             horizon: self.horizon.clone(),
             controller: self.controller.clone(),
+            touch: self.touch.clone(),
             extras: self.extras.clone(),
             mods: self.mods.clone(),
             ..Self::from_file(file)
@@ -618,6 +624,8 @@ impl Settings {
         if let Some(dir) = path.parent() {
             self.horizon.save(dir);
             self.controller.save(dir);
+            #[cfg(target_os = "android")]
+            let _ = self.touch.save_to(&dir.join("horizon-touch.json"));
             self.extras.save(dir);
             self.mods.save(dir);
         }
