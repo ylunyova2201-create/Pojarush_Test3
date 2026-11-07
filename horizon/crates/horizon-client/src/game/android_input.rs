@@ -123,7 +123,7 @@ impl Game<'_> {
             force: None,
             id: POINTER,
         };
-        self.window_event(events, id, WindowEvent::Touch(touch));
+        self.handle_window_event(events, id, WindowEvent::Touch(touch));
         true
     }
 
@@ -638,7 +638,7 @@ impl Game<'_> {
             } else {
                 id
             };
-            self.window_event(
+            self.handle_window_event(
                 events,
                 id,
                 WindowEvent::MouseInput {
@@ -1405,7 +1405,7 @@ impl Game<'_> {
             self.ui.options.touch_start();
         }
         let direct = self.pad.touch_ui.direct_pointer(t.id, p, t.phase);
-        self.window_event(
+        self.handle_window_event(
             events,
             id,
             WindowEvent::CursorMoved {
@@ -1415,7 +1415,7 @@ impl Game<'_> {
         );
         if direct {
             if t.phase != TouchPhase::Moved {
-                self.window_event(
+                self.handle_window_event(
                     events,
                     id,
                     WindowEvent::MouseInput {
@@ -1439,7 +1439,7 @@ impl Game<'_> {
             Gesture::Tap => {
                 let field = crate::platform::field_at(p);
                 for state in [ElementState::Pressed, ElementState::Released] {
-                    self.window_event(
+                    self.handle_window_event(
                         events,
                         id,
                         WindowEvent::MouseInput {
@@ -1458,7 +1458,7 @@ impl Game<'_> {
                     .options
                     .touch_scroll(&self.settings, (b.width, b.height), (p[0], p[1]), y);
             }
-            Gesture::Scroll(y) => self.window_event(
+            Gesture::Scroll(y) => self.handle_window_event(
                 events,
                 id,
                 WindowEvent::MouseWheel {
@@ -1489,7 +1489,7 @@ impl Game<'_> {
             !self.pad.touch_ui.mouse_held(),
         );
         self.cursor = (position[0], position[1]);
-        self.window_event(
+        self.handle_window_event(
             events,
             id,
             WindowEvent::CursorMoved {
@@ -1539,7 +1539,7 @@ impl Game<'_> {
             }
         } else if let Some(id) = self.window.as_ref().map(|w| w.id()) {
             for state in [ElementState::Pressed, ElementState::Released] {
-                self.window_event(
+                self.handle_window_event(
                     events,
                     id,
                     WindowEvent::MouseInput {
@@ -1804,7 +1804,7 @@ impl Game<'_> {
                             self.android_virtual_touch(touch, event_loop, id);
                             return;
                         }
-                        self.window_event(
+                        self.handle_window_event(
                             event_loop,
                             id,
                             WindowEvent::CursorMoved {
@@ -1813,7 +1813,7 @@ impl Game<'_> {
                             },
                         );
                         if touch.phase != TouchPhase::Moved {
-                            self.window_event(
+                            self.handle_window_event(
                                 event_loop,
                                 id,
                                 WindowEvent::MouseInput {
