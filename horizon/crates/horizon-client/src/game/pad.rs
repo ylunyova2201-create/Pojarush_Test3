@@ -46,6 +46,10 @@ pub(super) struct Pads {
     pub(super) style: GlyphStyle,
     /// The cursor the pad drives in menus.
     pub(super) menu: super::pad_menu::MenuCursor,
+    /// Native HorizonCraft multitouch controls and their editor state.
+    pub(super) touch: horizon_client::touch::TouchControls,
+    pub(super) touch_ui: horizon_client::touch_ui::TouchUi,
+    pub(super) touch_aim: Option<[f32; 2]>,
     /// The last vibration asked for, for `pad status`.
     last_rumble: Option<(&'static str, gamepad::Pulse)>,
     /// The player's health between polls (a drop is damage taken).
