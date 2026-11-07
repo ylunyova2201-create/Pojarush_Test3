@@ -3,6 +3,19 @@
 mod game;
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "android")]
+mod platform;
+#[cfg(target_os = "android")]
+mod device_runtime;
+#[cfg(target_os = "android")]
+mod display;
+#[cfg(target_os = "android")]
+pub(crate) use horizon_client::keypad;
+
+#[cfg(target_os = "android")]
+pub(crate) fn touch_visible() -> bool { true }
+#[cfg(target_os = "android")]
+pub(crate) fn keyboard_mouse_input() -> bool { false }
 
 use horizon_client::{crash, logging};
 
