@@ -12998,6 +12998,113 @@ impl Game<'_> {
             Vec::new()
         };
         let mut hud = horizon_client::spans::time("hud", || self.hud(size));
+        #[cfg(target_os = "android")]
+        {
+            self.pad.touch.auxiliary_only =
+                self.settings.keypad.enabled && self.pad.touch.editor.is_none();
+            self.pad.touch.update_visibility(
+                crate::touch_visible(),
+                (self.frame_ticks / 20.0).clamp(0.0, 0.25),
+            );
+        }
+        #[cfg(target_os = "android")]
+        if self.pad.touch.editor.is_some() {
+            let profile_name = self.pad.touch.settings.preset_name.clone();
+            horizon_client::touch_ui::draw_hud_editor(
+                &self.pad.touch,
+                &mut hud,
+                &self.gui.atlas,
+                &profile_name,
+                None,
+            );
+        } else {
+            #[cfg(target_os = "android")]
+            self.android_sync_pointer();
+            // Draw the virtual mouse pointer directly above the vanilla game/menu GUI layer
+            // and strictly underneath our touch controls and floating menu overlays.
+            #[cfg(target_os = "android")]
+            if self.pad.touch_ui.virtual_mouse {
+                horizon_client::touch_ui::draw_pointer(
+                    &mut hud,
+                    &self.gui.atlas,
+                    self.cursor,
+                    self.pad.touch.settings.virtual_mouse_pointer_scale,
+                );
+            }
+            let in_menu = self.pad_in_menu();
+            let waiting_for_key = self.screen == Screen::Options && self.options_waiting_for_key();
+            let hud_in_menu = in_menu && !waiting_for_key;
+            self.pad.touch.in_menu = hud_in_menu;
+            self.pad.touch.in_inventory =
+                matches!(self.screen, Screen::Inventory | Screen::Creative);
+            self.pad.touch.goy_rendered_by_ui = true;
+            if (in_menu || !self.ui.hide_gui)
+                && (self.player.is_some() || self.settings.keypad.enabled)
+                && (!hud_in_menu
+                    || self.android_inventory_controls()
+                    || self.pad.touch.in_inventory
+                    || self.pad.touch.settings.layouts[self.pad.touch.settings.mode.index()]
+                        .iter()
+                        .any(|p| p.visible_in_menu)
+                    || (0..self.pad.touch.settings.custom_buttons.len())
+                        .any(|i| self.pad.touch.custom_visible_for_state(i, hud_in_menu)))
+            {
+                self.pad.touch.context_use =
+                    self.pad.touch.settings.contextual_interact && self.touch_context_use();
+                self.pad.touch.vertical_movement = self.player.as_ref().is_some_and(|p| p.flying);
+                self.pad.touch.swimming = self.player.as_ref().is_some_and(|p| p.swimming);
+                self.pad.touch.mounted = self.riding.is_some();
+                self.pad.touch.shield_available = self.touch_shield_available();
+                self.pad.touch.sneaking = self.keys.contains(&KeyCode::ShiftLeft);
+                self.pad.touch.break_progress = self.touch_mining_progress();
+                self.pad.touch.draw(&mut hud, &self.gui.atlas);
+            }
+            if !self.settings.keypad.enabled && (in_menu || !self.ui.hide_gui) {
+                horizon_client::touch_ui::draw_goy_hud(
+                    &self.pad.touch,
+                    &mut hud,
+                    &self.gui.atlas,
+                    hud_in_menu,
+                    self.pad.touch_ui.virtual_mouse,
+                );
+            }
+        }
+        #[cfg(target_os = "android")]
+        {
+            self.android_sync_pointer();
+            if self.pad.touch.editor.is_none() {
+                self.pad.touch_ui.goy_mode = self.pad.touch.settings.control_style
+                    == horizon_client::touch::ControlStyle::GoyControl;
+                self.pad
+                    .touch_ui
+                    .draw(&mut hud, &self.gui.atlas, self.pad_in_menu());
+                self.pad.touch_ui.draw_floating_menu(
+                    &mut hud,
+                    &self.gui.atlas,
+                    &self.pad.touch.settings,
+                );
+                if let Some(status) = shader_packs::pending_shader_pack_status() {
+                    let mut ui =
+                        horizon_client::ui_theme::Ui::mobile(&self.gui.atlas, &mut hud, (0.0, 0.0));
+                    let theme = horizon_client::ui_theme::active_theme();
+                    let bw = (ui.measure(horizon_client::ui_theme::Face::SemiBold, 11.0, &status)
+                        + 28.0)
+                        .clamp(180.0, (ui.w - 24.0).max(180.0));
+                    let bx = (ui.w - bw) * 0.5;
+                    let by = 38.0;
+                    ui.rounded(bx, by, bw, 28.0, 14.0, theme.bg_solid);
+                    ui.border(bx, by, bw, 28.0, 14.0, theme.accent);
+                    ui.centered_fit(
+                        horizon_client::ui_theme::Face::SemiBold,
+                        10.5,
+                        [bx + 8.0, by, bw - 16.0, 28.0],
+                        theme.accent_text,
+                        &status,
+                    );
+                    ui.finish();
+                }
+            }
+        }
         // LevelLoadingScreen (Reason.OTHER) draws the title's panorama.
         let title = self.title.is_some()
             || self.loading_reason() == Some(horizon_client::level_loading::Reason::Other)
