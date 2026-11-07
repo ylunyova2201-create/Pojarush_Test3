@@ -1,0 +1,70 @@
+name: Pojarush Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Pojarush/**'
+      - 'gradle/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pojarush-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: |
+          sdkmanager --install "platforms;android-37" "build-tools;36.0.0"
+          yes | sdkmanager --licenses >/dev/null
+
+      - name: Build APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace :Pojarush:assembleDebug
+
+      - name: Collect APK and checksum
+        run: |
+          mkdir -p dist
+          apk="$(find Pojarush/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$apk"
+          cp "$apk" dist/Pojarush-Test3-debug.apk
+          sha256sum dist/Pojarush-Test3-debug.apk > dist/SHA256SUMS.txt
+          {
+            echo "## Pojarush debug APK"
+            echo
+            echo "- Source commit: `$GITHUB_SHA`"
+            echo "- Variant: debug (not a release-signed update)"
+            echo "- SHA-256: `$(cut -d ' ' -f1 dist/SHA256SUMS.txt)`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pojarush-Test3-debug-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
