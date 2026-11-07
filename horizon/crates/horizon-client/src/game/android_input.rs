@@ -1552,3 +1552,294 @@ impl Game<'_> {
         }
     }
 }
+
+
+impl Game<'_> {
+    /// Route Android surface touches through Horizon's native multitouch controls and editor.
+    pub(super) fn android_touch_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        id: WindowId,
+        touch: &Touch,
+    ) {
+        use winit::event::TouchPhase;
+                    use winit::event::TouchPhase;
+                    self.last_input = Instant::now();
+                    self.pad.menu.keyboard_focus = false;
+                    let size = if let Some(r) = self.renderer.as_ref() {
+                        winit::dpi::PhysicalSize::new(r.config.width, r.config.height)
+                    } else if let Some(w) = self.window.as_ref() {
+                        w.inner_size()
+                    } else {
+                        return;
+                    };
+                    self.pad.touch.viewport(size.width, size.height);
+                    if self.pad.touch.editor.is_some() {
+                        if touch.phase == TouchPhase::Cancelled {
+                            self.pad.touch.cancel_editor_gesture();
+                            return;
+                        }
+                        let ended = touch.phase == TouchPhase::Ended;
+                        let mut b = HudBatch::new([size.width, size.height]);
+                        if horizon_client::touch_ui::touch_hud_editor(
+                            &mut self.pad.touch,
+                            &mut b,
+                            &self.gui.atlas,
+                            touch.id,
+                            [
+                                touch.location.x as f32 / size.width.max(1) as f32,
+                                touch.location.y as f32 / size.height.max(1) as f32,
+                            ],
+                            touch.phase == TouchPhase::Started,
+                            ended,
+                        ) {
+                            self.pause = false;
+                        }
+                        self.settings.touch = self.pad.touch.settings.clone();
+                        if std::mem::take(&mut self.pad.touch.clicked) {
+                            self.audio.play_button_click();
+                            self.android_touch_haptic(10);
+                        }
+                        return;
+                    }
+                    match self.android_aux_touch(touch, event_loop, id) {
+                        Ok(true) => return,
+                        Ok(false) => {}
+                        Err(error) => {
+                            log::error!("Android input: {error}");
+                            return;
+                        }
+                    }
+                    if touch.phase == TouchPhase::Cancelled {
+                        self.pad.touch.clear();
+                        return;
+                    }
+                    let overlay_point = [
+                        touch.location.x as f32 / size.width.max(1) as f32,
+                        touch.location.y as f32 / size.height.max(1) as f32,
+                    ];
+                    let in_menu = self.pad_in_menu();
+                    let waiting_for_key = self.screen == Screen::Options && self.options_waiting_for_key();
+                    self.pad.touch.in_menu = in_menu && !waiting_for_key;
+                    self.pad.touch.in_inventory =
+                        matches!(self.screen, Screen::Inventory | Screen::Creative);
+                    let touch_controls_hidden = !crate::touch_visible()
+                        && self.pad.touch.hud_opacity_scale <= 0.01
+                        && self.pad.touch.editor.is_none();
+                    if in_menu
+                        && self.pad.touch.consume_ignored(
+                            touch.id,
+                            matches!(touch.phase, TouchPhase::Ended | TouchPhase::Cancelled),
+                        )
+                    {
+                        return;
+                    }
+                    let menu_custom_hit = !touch_controls_hidden
+                        && in_menu
+                        && !self.settings.keypad.enabled
+                        && (self.pad.touch.owns_pointer(touch.id)
+                            || (touch.phase == TouchPhase::Started
+                                && self.pad.touch.custom_at(overlay_point).is_some()));
+                    let inventory_control = !touch_controls_hidden
+                        && (self.android_inventory_controls() || self.pad.touch.in_menu)
+                        && (self.pad.touch.owns_pointer(touch.id)
+                            || (touch.phase == TouchPhase::Started
+                                && self.pad.touch.control_at_point(overlay_point)));
+                    if inventory_control
+                        && touch.phase == TouchPhase::Started
+                        && self.pad.touch.custom_at(overlay_point).is_none()
+                        && self.pad.touch.control_at(overlay_point)
+                            == Some(horizon_client::touch::Control::Sneak)
+                    {
+                        self.pad.touch.inventory_shift ^= true;
+                        self.audio.play_button_click();
+                        self.android_touch_haptic(10);
+                        self.pad.touch.ignore(touch.id);
+                        return;
+                    }
+                    if (menu_custom_hit || inventory_control)
+                        && self.pad.touch.menu_update(
+                            touch.id,
+                            overlay_point,
+                            touch.phase == TouchPhase::Started,
+                            matches!(touch.phase, TouchPhase::Ended | TouchPhase::Cancelled),
+                        )
+                    {
+                        self.android_custom_events();
+                        if std::mem::take(&mut self.pad.touch.clicked) {
+                            self.audio.play_button_click();
+                        }
+                        return;
+                    }
+                    if inventory_control
+                        && touch.phase == TouchPhase::Started
+                        && self.pad.touch.custom_at(overlay_point).is_none()
+                        && let Some(control) = self.pad.touch.control_at(overlay_point)
+                        && !matches!(
+                            control,
+                            horizon_client::touch::Control::Debug
+                                | horizon_client::touch::Control::Settings
+                                | horizon_client::touch::Control::Perspective
+                        )
+                    {
+                        self.pad.touch.ignore(touch.id);
+                        if matches!(
+                            control,
+                            horizon_client::touch::Control::Inventory
+                                | horizon_client::touch::Control::Pause
+                        ) && let Err(error) = self.pad_back()
+                        {
+                            log::warn!("Touch inventory close: {error}");
+                        }
+                        return;
+                    }
+                    if !self.pad_in_menu() || (inventory_control && self.android_inventory_controls()) {
+                        if touch_controls_hidden
+                            || (!crate::touch_visible() && !self.settings.keypad.enabled)
+                        {
+                            return;
+                        }
+                        self.pad.in_use = true;
+                        if !self.pad_in_menu() && !self.captured && self.focused {
+                            self.capture(true);
+                        }
+                        if touch.phase == TouchPhase::Started {
+                            let batch = HudBatch::new([size.width, size.height]);
+                            let point = [
+                                touch.location.x as f32 / batch.scale,
+                                touch.location.y as f32 / batch.scale,
+                            ];
+                            if let Some(slot) =
+                                horizon_client::touch::hotbar_slot(batch.width, batch.height, point)
+                                && !self.pad.touch.control_at_point([
+                                    touch.location.x as f32 / size.width.max(1) as f32,
+                                    touch.location.y as f32 / size.height.max(1) as f32,
+                                ])
+                            {
+                                self.selected = slot;
+                                self.pad.touch.ignore(touch.id);
+                                return;
+                            }
+                        }
+                        if touch.phase == TouchPhase::Started {
+                            self.pad.touch.projectile_crosshair = self.touch_projectile_crosshair();
+                            self.pad.touch.hold_uses_item = self.touch_item_held_use();
+                        }
+                        let raw_delta = self.pad.touch.update(
+                            touch.id,
+                            [
+                                touch.location.x as f32 / size.width.max(1) as f32,
+                                touch.location.y as f32 / size.height.max(1) as f32,
+                            ],
+                            touch.phase == TouchPhase::Started,
+                            matches!(touch.phase, TouchPhase::Ended | TouchPhase::Cancelled),
+                        );
+                        if self.pad.touch.has_pending_key_events() {
+                            self.android_custom_events();
+                        }
+                        if self.pad.touch_ui.virtual_mouse
+                            && (raw_delta[0] != 0.0 || raw_delta[1] != 0.0)
+                            && let Some(b) = self.gui_scale()
+                        {
+                            let vm_sens = self
+                                .pad
+                                .touch
+                                .settings
+                                .virtual_mouse_sensitivity
+                                .clamp(0.25, 4.0);
+                            self.cursor = (
+                                (self.cursor.0 + raw_delta[0] * b.width * vm_sens).clamp(0.0, b.width),
+                                (self.cursor.1 + raw_delta[1] * b.height * vm_sens).clamp(0.0, b.height),
+                            );
+                        }
+                        let delta = horizon_client::touch::camera_delta_with_mouse(
+                            raw_delta,
+                            size.width,
+                            size.height,
+                            &self.pad.touch.settings,
+                            self.settings.sensitivity,
+                            self.settings.invert_x,
+                            self.settings.invert_y,
+                            self.zoom_turn_scale() as f32,
+                        );
+                        if delta[0] != 0.0 || delta[1] != 0.0 {
+                            self.tutorial
+                                .mouse(f64::from(delta[0]), f64::from(delta[1]));
+                            self.turn_player(f64::from(delta[0]) / 0.15, f64::from(delta[1]) / 0.15);
+                        }
+                        if self.pad.touch.chat_requested {
+                            self.audio.play_button_click();
+                            self.pad.touch.clear();
+                            if let Err(error) = self.key_pressed(KeyCode::KeyT) {
+                                log::warn!("Touch chat: {error}");
+                            }
+                            self.android_show_keyboard();
+                        } else if self.pad.touch.settings_requested {
+                            self.android_release_touch_keys(true);
+                            self.audio.play_button_click();
+                            self.open_options(false);
+                        } else if std::mem::take(&mut self.pad.touch.debug_requested) {
+                            self.audio.play_button_click();
+                            if !self.pad.touch_ui.key_held(KeyCode::F3) {
+                                use horizon_client::debug_keys::KeyAction;
+                                self.debug_key(KeyCode::F3, KeyAction::Press);
+                                self.debug_key(KeyCode::F3, KeyAction::Release);
+                            }
+                        } else if std::mem::take(&mut self.pad.touch.perspective_requested) {
+                            self.audio.play_button_click();
+                            if let Err(error) = self.key_pressed(KeyCode::F5) {
+                                log::warn!("Touch perspective: {error}");
+                            }
+                        }
+                    } else {
+                        if !self.android_inventory_controls() {
+                            self.pad.touch.clear_world_gesture();
+                        }
+                        self.android_sync_pointer();
+                        if !matches!(self.screen, Screen::Inventory | Screen::Creative) {
+                            self.android_menu_touch(touch, event_loop, id);
+                            return;
+                        }
+                        if self.pad.touch_ui.virtual_mouse {
+                            self.android_virtual_touch(touch, event_loop, id);
+                            return;
+                        }
+                        self.window_event(
+                            event_loop,
+                            id,
+                            WindowEvent::CursorMoved {
+                                device_id: touch.device_id,
+                                position: touch.location,
+                            },
+                        );
+                        if touch.phase != TouchPhase::Moved {
+                            self.window_event(
+                                event_loop,
+                                id,
+                                WindowEvent::MouseInput {
+                                    device_id: touch.device_id,
+                                    button: MouseButton::Left,
+                                    state: if touch.phase == TouchPhase::Started {
+                                        ElementState::Pressed
+                                    } else {
+                                        ElementState::Released
+                                    },
+                                },
+                            );
+                        }
+                        if touch.phase == TouchPhase::Ended {
+                            let b = self.gui_scale();
+                            if let Some(b) = b {
+                                let p = [
+                                    touch.location.x as f32 / b.scale,
+                                    touch.location.y as f32 / b.scale,
+                                ];
+                                if crate::platform::field_at(p) {
+                                    self.android_show_keyboard();
+                                }
+                            }
+                        }
+                    }
+                    return;
+    }
+}
