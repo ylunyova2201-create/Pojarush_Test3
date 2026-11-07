@@ -42,6 +42,8 @@ fn pack_files(world_tables: &Option<WorldTables>) -> horizon_world::loot::PackOv
 mod advancements;
 #[cfg(target_os = "android")]
 mod android_bridge;
+#[cfg(target_os = "android")]
+mod android_input;
 mod advancements_screen;
 mod agent;
 mod agent_settings;
