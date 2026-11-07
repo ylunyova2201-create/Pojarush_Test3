@@ -10,7 +10,7 @@ use horizon_client::{
     keybinds::{KeyBinds, key_code, mouse_button},
 };
 use serde_json::{Value, json};
-use std::time::Instant;
+use std::{collections::{HashMap, HashSet}, time::Instant};
 use winit::{event_loop::ActiveEventLoop, keyboard::KeyCode};
 
 pub(super) const HELP: &[&str] = &[
@@ -50,6 +50,10 @@ pub(super) struct Pads {
     pub(super) touch: horizon_client::touch::TouchControls,
     pub(super) touch_ui: horizon_client::touch_ui::TouchUi,
     pub(super) touch_aim: Option<[f32; 2]>,
+    /// Keys owned by the native Horizon touch layer.
+    pub(super) custom_keys: HashSet<KeyCode>,
+    pub(super) custom_pressed_at: HashMap<String, u64>,
+    pub(super) late_custom_releases: Vec<String>,
     /// The last vibration asked for, for `pad status`.
     last_rumble: Option<(&'static str, gamepad::Pulse)>,
     /// The player's health between polls (a drop is damage taken).
