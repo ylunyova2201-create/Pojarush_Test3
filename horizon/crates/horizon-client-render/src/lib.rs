@@ -79,6 +79,7 @@ mod sprite_cache;
 pub mod sprites;
 pub mod streaming;
 pub mod tab_list;
+pub mod touch;
 pub mod telemetry;
 pub mod testgen;
 pub mod title_edition;
