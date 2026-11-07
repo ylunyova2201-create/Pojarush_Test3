@@ -1,0 +1,97 @@
+name: Horizon touch integration CI
+
+on:
+  push:
+    branches: [horizon-controls-port]
+    paths:
+      - 'horizon/**'
+      - 'Pojarush/src/main/jniLibs/**'
+      - '.github/workflows/horizon-controls-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: horizon-controls-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-arm64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/28.2.13676358
+      CARGO_TARGET_DIR: ${{ github.workspace }}/.local/ci-target
+      CARGO_BUILD_JOBS: '2'
+      HORIZON_TELEMETRY_URL: 'off'
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Install Android SDK and NDK
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$sdkmanager" --install "platforms;android-37.2" "build-tools;37.0.0" "ndk;28.2.13676358"
+          yes | "$sdkmanager" --licenses >/dev/null
+          test -x "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            .local/ci-target
+          key: horizon-android-arm64-${{ hashFiles('horizon/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            horizon-android-arm64-${{ hashFiles('horizon/Cargo.lock') }}-
+
+      - name: Build native Horizon engine and prepare tool
+        run: |
+          chmod +x horizon/android/build-android.sh
+          ./horizon/android/build-android.sh
+
+      - name: Build Pojarush APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace :Pojarush:assembleDebug
+
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          apk="$(find Pojarush/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$apk"
+          cp "$apk" dist/Pojarush-Horizon-controls-debug.apk
+          sha256sum dist/Pojarush-Horizon-controls-debug.apk > dist/SHA256SUMS.txt
+          {
+            echo "## Horizon touch integration build"
+            echo
+            echo "- Commit: `$GITHUB_SHA`"
+            echo "- ABI: arm64-v8a"
+            echo "- SHA-256: `$(cut -d ' ' -f1 dist/SHA256SUMS.txt)`"
+            echo "- Device runtime validation is still required."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pojarush-Horizon-controls-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
