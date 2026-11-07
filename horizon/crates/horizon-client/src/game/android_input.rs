@@ -1843,3 +1843,33 @@ impl Game<'_> {
                     return;
     }
 }
+
+
+impl Game<'_> {
+    #[cfg(target_os = "android")]
+    pub(super) fn android_inventory_controls(&self) -> bool { false }
+
+    #[cfg(target_os = "android")]
+    pub(super) fn touch_projectile_crosshair(&self) -> bool {
+        self.held().is_some_and(|stack| horizon_client::touch::projectile_crosshair(&stack.item))
+    }
+
+    #[cfg(target_os = "android")]
+    pub(super) fn touch_item_held_use(&self) -> bool {
+        self.held().is_some()
+    }
+
+    #[cfg(target_os = "android")]
+    pub(super) fn touch_context_use(&self) -> bool { false }
+
+    #[cfg(target_os = "android")]
+    pub(super) fn touch_shield_available(&self) -> bool {
+        self.held().is_some_and(|stack| stack.item == "minecraft:shield")
+    }
+
+    #[cfg(target_os = "android")]
+    pub(super) fn touch_mining_progress(&self) -> f32 { 0.0 }
+
+    #[cfg(target_os = "android")]
+    pub(super) fn zoom_turn_scale(&self) -> f32 { 1.0 }
+}
