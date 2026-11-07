@@ -341,6 +341,7 @@ impl Settings {
             Err(_) => Self {
                 horizon,
                 controller,
+                touch,
                 extras,
                 mods,
                 ..Self::default()
@@ -447,6 +448,7 @@ impl Settings {
             ctrl_click_emulates_right_click: f.bool("ctrlClickEmulatesRightClick"),
             horizon: Default::default(),
             controller: Default::default(),
+            touch: Default::default(),
             extras: Default::default(),
             mods: Default::default(),
             shader_packs: Vec::new(),
