@@ -454,6 +454,7 @@ impl Settings {
             horizon: Default::default(),
             controller: Default::default(),
             touch: Default::default(),
+            keypad: Default::default(),
             extras: Default::default(),
             mods: Default::default(),
             shader_packs: Vec::new(),
