@@ -5,7 +5,7 @@ use horizon_client::{
     osk::Output,
     touch_ui::{Action, Gesture},
 };
-use winit::event::{Touch, TouchPhase};
+use winit::{event::{Touch, TouchPhase}, event_loop::ActiveEventLoop};
 
 impl Game<'_> {
     pub(crate) fn android_apply_display_scale(&mut self) {
@@ -19,7 +19,7 @@ impl Game<'_> {
 
     pub(super) fn android_keypad_menu_key(
         &mut self,
-        events: &dyn super::event_loop::EventLoopCtl,
+        events: &ActiveEventLoop,
         event: &winit::event::KeyEvent,
     ) -> Result<bool> {
         if !self.pad_in_menu()
@@ -68,7 +68,7 @@ impl Game<'_> {
     /// A freely moving physical pointer can use the same utility buttons as touch.
     pub(super) fn android_aux_mouse(
         &mut self,
-        events: &dyn super::event_loop::EventLoopCtl,
+        events: &ActiveEventLoop,
         id: WindowId,
         event: &WindowEvent,
     ) -> bool {
@@ -620,7 +620,7 @@ impl Game<'_> {
 
     fn android_menu_mouse(
         &mut self,
-        events: &dyn super::event_loop::EventLoopCtl,
+        events: &ActiveEventLoop,
         id: WindowId,
         right: bool,
         down: bool,
@@ -657,7 +657,7 @@ impl Game<'_> {
     pub(super) fn android_aux_touch(
         &mut self,
         t: &Touch,
-        events: &dyn super::event_loop::EventLoopCtl,
+        events: &ActiveEventLoop,
         id: WindowId,
     ) -> Result<bool> {
         self.pad.touch_ui.goy_mode = self.pad.touch.settings.control_style
@@ -1389,7 +1389,7 @@ impl Game<'_> {
     pub(super) fn android_menu_touch(
         &mut self,
         t: &Touch,
-        events: &dyn super::event_loop::EventLoopCtl,
+        events: &ActiveEventLoop,
         id: WindowId,
     ) {
         self.android_sync_pointer();
@@ -1473,7 +1473,7 @@ impl Game<'_> {
     pub(super) fn android_virtual_touch(
         &mut self,
         t: &Touch,
-        events: &dyn super::event_loop::EventLoopCtl,
+        events: &ActiveEventLoop,
         id: WindowId,
     ) {
         let Some(b) = self.gui_scale() else {
@@ -1506,7 +1506,7 @@ impl Game<'_> {
     }
     pub(super) fn android_virtual_mouse_clicks(
         &mut self,
-        events: &dyn super::event_loop::EventLoopCtl,
+        events: &ActiveEventLoop,
     ) {
         if !self.focused || !self.pad.touch_ui.virtual_mouse {
             self.pad.touch_ui.cancel_relative();
