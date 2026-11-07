@@ -89,6 +89,8 @@ pub(super) struct MenuCursor {
     pub(super) osk: Option<Keyboard>,
     /// The keyboard was closed on this screen (it doesn't open by itself again).
     osk_dismissed: bool,
+    /// Android native touch layer currently owns keyboard focus.
+    pub(super) keyboard_focus: bool,
 }
 
 impl Game<'_> {
